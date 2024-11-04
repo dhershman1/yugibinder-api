@@ -1,0 +1,27 @@
+{
+  "name": "yugibinder-api",
+  "version": "1.0.0",
+  "description": "A node API for using YugiBinder",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "yugioh",
+    "api",
+    "yugibinder"
+  ],
+  "author": "Dustin Hershman<dustinh17@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "express": "^5.0.1",
+    "express-session": "^1.18.1",
+    "pino-http": "^10.3.0"
+  },
+  "devDependencies": {
+    "standard": "^17.1.2"
+  }
+}
