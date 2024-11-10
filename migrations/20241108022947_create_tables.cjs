@@ -1,0 +1,112 @@
+exports.up = function (knex) {
+  return knex.schema
+    .createTable('users', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('username')
+      table.string('role')
+      table.string('password')
+      table.timestamp('created_at').defaultTo(knex.fn.now())
+      table.timestamp('updated_at').defaultTo(knex.fn.now())
+    })
+    .createTable('binders', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('name')
+      table.text('description')
+      table.string('thumbnail')
+      table.timestamp('created_at').defaultTo(knex.fn.now())
+      table.timestamp('updated_at').defaultTo(knex.fn.now())
+      table.uuid('created_by').references('id').inTable('users')
+      table.integer('views').defaultTo(0)
+    })
+    .createTable('binder_likes', (table) => {
+      table.uuid('user_id').references('id').inTable('users')
+      table.uuid('binder_id').references('id').inTable('binders')
+      table.timestamp('time').defaultTo(knex.fn.now())
+    })
+    .createTable('cards', (table) => {
+      table
+        .integer('id')
+        .primary()
+        .comment('this is an integer because the cards already have ids from the ygo api we will use')
+      table.string('name')
+      table.string('type')
+      table.string('frame_type')
+      table.string('archetype')
+      table.text('description')
+      table.integer('attack')
+      table.integer('defense')
+      table.integer('level')
+      table.integer('konami_id')
+      table.specificType('card_images', 'integer[]')
+      table.specificType('typeline', 'text[]')
+      table.specificType('formats', 'text[]')
+      table.specificType('card_prices', 'jsonb[]')
+      table.specificType('card_sets', 'jsonb[]')
+      table.string('race')
+      table.string('attribute')
+      table.integer('views').defaultTo(0)
+      table.jsonb('banlist_info').defaultTo('{}')
+    })
+    .createTable('cards_in_binders', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.uuid('binder_id').references('id').inTable('binders')
+      table.integer('card_id').references('id').inTable('cards')
+      table.string('rarity', 50).defaultTo('common')
+      table.enu('edition', ['first_edition', 'unlimited']).defaultTo('unlimited')
+    })
+    .createTable('articles', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('title')
+      table.text('body')
+      table.timestamp('created_at').defaultTo(knex.fn.now())
+      table.uuid('created_by').references('id').inTable('users')
+    })
+    .createTable('tags', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('title').unique().notNullable()
+    })
+    .createTable('binder_tags', (table) => {
+      table.uuid('binder_id').references('id').inTable('binders')
+      table.uuid('tag_id').references('id').inTable('tags')
+    })
+    .createTable('roles', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('role_name', 50).unique().notNullable()
+    })
+    .createTable('permissions', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('permission_name', 50).unique().notNullable()
+    })
+    .createTable('role_permissions', (table) => {
+      table.uuid('role_id').references('id').inTable('roles').onDelete('CASCADE')
+      table.uuid('permission_id').references('id').inTable('permissions').onDelete('CASCADE')
+      table.primary(['role_id', 'permission_id'])
+    })
+    .createTable('user_roles', (table) => {
+      table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE')
+      table.uuid('role_id').references('id').inTable('roles').onDelete('CASCADE')
+      table.primary(['user_id', 'role_id'])
+    })
+    .createTable('db_info', (table) => {
+      table.string('downloaded_version')
+      table.timestamp('last_updated').defaultTo(knex.fn.now())
+    })
+}
+
+exports.down = function (knex) {
+  return knex.schema
+    .dropTableIfExists('db_info')
+    .dropTableIfExists('user_roles')
+    .dropTableIfExists('role_permissions')
+    .dropTableIfExists('permissions')
+    .dropTableIfExists('roles')
+    .dropTableIfExists('binder_tags')
+    .dropTableIfExists('tags')
+    .dropTableIfExists('articles')
+    .dropTableIfExists('cards_in_binders')
+    .dropTableIfExists('cards')
+    .dropTableIfExists('binder_likes')
+    .dropTableIfExists('binder_views')
+    .dropTableIfExists('binders')
+    .dropTableIfExists('users')
+}
