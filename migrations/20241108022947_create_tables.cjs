@@ -5,6 +5,8 @@ exports.up = function (knex) {
       table.string('username')
       table.string('role')
       table.string('password')
+      table.string('avatar')
+      table.jsonb('settings').defaultTo('{}')
       table.timestamp('created_at').defaultTo(knex.fn.now())
       table.timestamp('updated_at').defaultTo(knex.fn.now())
     })
@@ -71,7 +73,12 @@ exports.up = function (knex) {
     })
     .createTable('binder_images', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
-      table.string('image_s3_key')
+      table.string('s3_key')
+      table.string('artist')
+    })
+    .createTable('avatars', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('s3_key')
       table.string('artist')
     })
     .createTable('roles', (table) => {
@@ -112,6 +119,8 @@ exports.down = function (knex) {
     .dropTableIfExists('cards')
     .dropTableIfExists('binder_likes')
     .dropTableIfExists('binder_views')
+    .dropTableIfExists('binder_images')
+    .dropTableIfExists('avatars')
     .dropTableIfExists('binders')
     .dropTableIfExists('users')
 }
