@@ -69,6 +69,11 @@ exports.up = function (knex) {
       table.uuid('binder_id').references('id').inTable('binders')
       table.uuid('tag_id').references('id').inTable('tags')
     })
+    .createTable('binder_images', (table) => {
+      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('image_s3_key')
+      table.string('artist')
+    })
     .createTable('roles', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
       table.string('role_name', 50).unique().notNullable()
