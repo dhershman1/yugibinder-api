@@ -11,22 +11,28 @@ const cache = {
   random: {
     data: null,
     timestamp: 0
+  },
+  query: {
+    data: null,
+    timestamp: 0
   }
 }
 const CACHE_EXPIRATION = 10 * 60 * 1000 // 10 minutes
 
-router.get('/top', async (_, res) => {
-  // Check if the repsonse is already cahced and not expired
-  if (Date.now() - cache.top.timestamp < CACHE_EXPIRATION) {
-    return res.json(cache.top.data)
+router.get('/', async (req, res) => {
+  const query = req.query
+  const queryString = Object.keys(query)
+    .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`)
+    .join('&')
+
+  if (Date.now() - cache.query.timestamp < CACHE_EXPIRATION) {
+    return res.json(cache.query.data)
   }
 
   try {
-    const response = await axios.get(
-      'https://db.ygoprodeck.com/api/v7/cardinfo.php?num=20&offset=0&sort=random&cachebust'
-    )
+    const response = await axios.get(`https://db.ygoprodeck.com/api/v7/cardinfo.php?${queryString}`)
 
-    cache.top = {
+    cache.query = {
       data: response.data.data,
       timestamp: Date.now()
     }
@@ -34,6 +40,17 @@ router.get('/top', async (_, res) => {
     res.json(response.data.data)
   } catch (error) {
     res.status(500).json({ error: 'Error fetching data from external API' })
+  }
+})
+
+router.get('/top', async (req, res) => {
+  try {
+    const records = await req.db('cards').select().orderBy('views', 'desc').limit(20)
+
+    res.json(records)
+  } catch (error) {
+    req.log.error(error, 'Error fetching top 20 cards')
+    res.status(500).json({ error: 'Something went wrong fetching top 20 cards' })
   }
 })
 
@@ -45,24 +62,33 @@ router.get('/:id', async (req, res) => {
     return res.json(cache[id].data)
   }
   try {
-    const response = await axios.get(`https://db.ygoprodeck.com/api/v7/cardinfo.php?id=${id}`)
+    const card = await req.db('cards').where({ id }).first()
+
+    // Update the views column
+    await req.db('cards').where({ id }).increment('views', 1)
 
     // Store the response in cache with a timestamp
     cache[id] = {
-      data: response.data.data[0],
+      data: card,
       timestamp: Date.now()
     }
 
-    res.json(response.data.data[0])
+    res.json(card)
   } catch (error) {
-    res.status(500).json({ error: 'Error fetching data from external API' })
+    req.log.error(error, 'Error fetching card, or updating views')
+    res.status(500).json({ error: 'Something went wrong fetching this card' })
   }
 })
 
 router.get('/random', async (req, res) => {
-  const response = await axios.get('https://db.ygoprodeck.com/api/v7/randomcard.php')
+  try {
+    const randomCard = await req.db('cards').orderByRaw('RANDOM()').limit(1).first()
 
-  res.json(response.data.data[0])
+    res.json(randomCard)
+  } catch (error) {
+    req.log.error(error, 'Error fetching random card')
+    res.status(500).json({ error: 'Something went wrong fetching a random card' })
+  }
 })
 
 export default router
