@@ -5,7 +5,11 @@ const router = express()
 async function getBinderThumbnail (binder, db) {
   const thumbnail = await db('binder_images').where('id', binder.thumbnail).first()
 
-  binder.thumbnail = `https://imgs.yugibinder.com/binders/${thumbnail.image_s3_key}`
+  if (!thumbnail) {
+    return binder
+  }
+
+  binder.thumbnail = `https://imgs.yugibinder.com/binders/${thumbnail.s3_key}`
 
   return binder
 }
@@ -80,6 +84,83 @@ router.get('/random', async (req, res) => {
   const response = await getBinderThumbnail(randomBinder, req.db)
 
   res.json(response)
+})
+
+router.get('/:id', async (req, res) => {
+  const { id } = req.params
+
+  try {
+    const binder = await req.db('binders')
+      .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
+      .leftJoin('tags', 'binder_tags.tag_id', 'tags.id')
+      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'))
+      .groupBy('binders.id')
+      .where('binders.id', id)
+      .first()
+
+    if (!binder) {
+      return res.status(404).json({ error: 'Binder not found' })
+    }
+
+    // Update the views column
+    await req.db('binders').where({ id }).increment('views', 1)
+
+    const cardCount = await req.db('cards_in_binders')
+      .where('binder_id', id)
+      .count('id as count')
+      .first()
+
+    binder.cardCount = cardCount.count
+
+    const response = await getBinderThumbnail(binder, req.db)
+
+    res.json(response)
+  } catch (error) {
+    req.log.error(error, 'Error fetching binder')
+    res.status(500).json({ error: 'Something went wrong fetching binder' })
+  }
+})
+
+router.get('/:id/cards', async (req, res) => {
+  const { id } = req.params
+  const { limit, offset, order, sort = 'asc', attribute, ...filters } = req.query
+
+  try {
+    let query = req.db('cards_in_binders')
+      .join('cards', 'cards_in_binders.card_id', 'cards.id')
+      .where('binder_id', id)
+      .select('cards.*', 'cards_in_binders.rarity', 'cards_in_binders.edition')
+
+    // Apply filters
+    Object.keys(filters).forEach((key) => {
+      query = query.where(`cards.${key}`, filters[key])
+    })
+
+    // Apply attribute filtering
+    if (attribute) {
+      query = query.where('cards.attribute', attribute)
+    }
+
+    // Apply ordering
+    if (order) {
+      query = query.orderBy(order, sort)
+    }
+
+    // Apply limit and offset
+    if (limit) {
+      query = query.limit(parseInt(limit, 10))
+    }
+    if (offset) {
+      query = query.offset(parseInt(offset, 10))
+    }
+
+    const cards = await query
+
+    res.json(cards)
+  } catch (error) {
+    req.log.error(error, 'Error fetching cards in binder')
+    res.status(500).json({ error: 'Something went wrong fetching cards in binder' })
+  }
 })
 
 router.post('/', async (req, res) => {
