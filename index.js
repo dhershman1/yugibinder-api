@@ -6,6 +6,7 @@ import 'dotenv/config'
 
 // Routes
 import cardsRouter from './routes/cards.js'
+import bindersRouter from './routes/binders.js'
 // Middleware
 import db from './middleware/db.js'
 
@@ -51,6 +52,7 @@ if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
 }
 
 app.use('/cards', cardsRouter)
+app.use('/binders', bindersRouter)
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`)
