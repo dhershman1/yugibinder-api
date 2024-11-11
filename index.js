@@ -2,11 +2,13 @@ import express from 'express'
 import cors from 'cors'
 import session from 'express-session'
 import pino from 'pino-http'
+import cookieParser from 'cookie-parser'
 import 'dotenv/config'
 
 // Routes
 import cardsRouter from './routes/cards.js'
 import bindersRouter from './routes/binders.js'
+import userRoutes from './routes/users.js'
 // Middleware
 import db from './middleware/db.js'
 
@@ -16,6 +18,7 @@ const PORT = process.env.PORT || 3001
 const SECRET = process.env.APP_SECRET || 'supercoolsecret'
 
 app.use(pino())
+app.use(cookieParser())
 app.use(cors())
 app.use(express.urlencoded())
 app.use(express.json())
@@ -53,6 +56,7 @@ if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
 
 app.use('/cards', cardsRouter)
 app.use('/binders', bindersRouter)
+app.use(userRoutes)
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`)
