@@ -2,9 +2,9 @@ exports.up = function (knex) {
   return knex.schema
     .createTable('users', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
-      table.string('username')
+      table.string('username').unique().notNullable()
       table.string('role')
-      table.string('password')
+      table.string('password').notNullable()
       table.string('avatar')
       table.jsonb('settings').defaultTo('{}')
       table.timestamp('created_at').defaultTo(knex.fn.now())
