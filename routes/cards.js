@@ -84,6 +84,9 @@ router.get('/random', async (req, res) => {
   try {
     const randomCard = await req.db('cards').orderByRaw('RANDOM()').limit(1).first()
 
+    // Update the views column
+    await req.db('cards').where({ id: randomCard.id }).increment('views', 1)
+
     randomCard.card_url = `${URL}/cards/${randomCard.id}`
     res.json(convertImgIDToURL(randomCard))
   } catch (error) {
