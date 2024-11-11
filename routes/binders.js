@@ -72,6 +72,19 @@ router.get('/', async (req, res) => {
   }
 })
 
+router.post('/add-card', async (req, res) => {
+  const { binderId, cardId, rarity, edition } = req.body
+
+  try {
+    await req.db('cards_in_binders').insert({ binder_id: binderId, card_id: cardId, rarity, edition })
+
+    res.json({ message: 'Card added to binder' })
+  } catch (error) {
+    req.log.error(error, 'Error adding card to binder')
+    res.status(500).json({ error: 'Something went wrong adding card to binder' })
+  }
+})
+
 router.get('/random', async (req, res) => {
   const randomBinder = await req.db('binders')
     .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
@@ -81,6 +94,10 @@ router.get('/random', async (req, res) => {
     .orderByRaw('RANDOM()')
     .limit(1)
     .first()
+
+  // Update the views column
+  await req.db('binders').where({ id: randomBinder.id }).increment('views', 1)
+
   const response = await getBinderThumbnail(randomBinder, req.db)
 
   res.json(response)
