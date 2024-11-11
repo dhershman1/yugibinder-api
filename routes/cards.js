@@ -32,9 +32,16 @@ function convertImgIDToURL (card) {
 }
 
 router.get('/', async (req, res) => {
-  const { limit, offset, order, sort = 'asc', attribute, ...filters } = req.query
+  const { limit = 10, offset = 0, order, sort = 'asc', attribute, ...filters } = req.query
 
   try {
+    const totalRecords = await req.db('cards').count('* as count').first()
+    const totalCount = totalRecords.count
+
+    // Calculate the total number of pages
+    const totalPages = Math.ceil(totalCount / limit)
+
+    // Fetch the Paginated results
     let query = req.db('cards')
 
     // Apply filters
@@ -53,16 +60,21 @@ router.get('/', async (req, res) => {
     }
 
     // Apply limit and offset
-    if (limit) {
-      query = query.limit(parseInt(limit, 10))
-    }
-    if (offset) {
-      query = query.offset(parseInt(offset, 10))
-    }
+    query = query.limit(parseInt(limit, 10)).offset(parseInt(offset, 10))
+    const currentPage = Math.floor(offset / limit) + 1
 
     const results = (await query).map(convertImgIDToURL)
 
-    res.json(results)
+    res.json({
+      results,
+      pagination: {
+        totalRecords: totalCount,
+        totalPages,
+        currentPage,
+        limit: parseInt(limit, 10),
+        offset: parseInt(offset, 10)
+      }
+    })
   } catch (error) {
     req.log.error(error, 'Error fetching cards with query parameters')
     res.status(500).json({ error: 'Something went wrong fetching cards' })
