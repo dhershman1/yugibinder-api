@@ -1,4 +1,5 @@
 import express from 'express'
+import authenticateToken from '../middleware/authenticateToken.js'
 
 const router = express()
 
@@ -72,10 +73,17 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.post('/add-card', async (req, res) => {
+router.post('/add-card', authenticateToken, async (req, res) => {
   const { binderId, cardId, rarity, edition } = req.body
 
   try {
+    // Make sure that the user adding this card is the owner of the binder
+    const binder = await req.db('binders').where('id', binderId).first()
+
+    if (binder.created_by !== req.user.id) {
+      return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
+    }
+
     await req.db('cards_in_binders').insert({ binder_id: binderId, card_id: cardId, rarity, edition })
 
     res.json({ message: 'Card added to binder' })
@@ -201,8 +209,15 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
+
+  // Make sure that the user deleting this binder is the owner of the binder
+  const binder = await req.db('binders').where('id', id).first()
+
+  if (binder.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'You do not have permission to delete this binder' })
+  }
 
   try {
     await req.db.transaction(async (trx) => {
