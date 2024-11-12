@@ -84,6 +84,7 @@ exports.up = function (knex) {
     .createTable('roles', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
       table.string('role_name', 50).unique().notNullable()
+      table.specificType('permissions', 'text[]').defaultTo('{}')
     })
     .createTable('permissions', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
