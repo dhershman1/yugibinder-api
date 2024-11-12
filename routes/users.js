@@ -1,7 +1,6 @@
 import express from 'express'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
-import authenticateToken from '../middleware/authenticateToken.js'
 
 const saltRounds = 10
 const TOKEN_EXPIRATION_THRESHOLD = 10 * 60 // 10 minutes in seconds
@@ -117,15 +116,12 @@ router.post('/login', async (req, res) => {
 
     if (foundUser && await bcrypt.compare(req.body.password, foundUser.password)) {
       // Get the user's permissions
-      const permissions = await req.db('permissions')
-        .join('role_permissions', 'permissions.id', 'role_permissions.permission_id')
-        .join('roles', 'roles.id', 'role_permissions.role_id')
+      const [roles] = await req.db('roles')
         .where('roles.role_name', foundUser.role)
-        .select('permissions.permission_name')
-      const permissionNames = permissions.map(permission => permission.permission_name)
+        .select('roles.permissions')
 
       const token = jwt.sign(
-        { id: foundUser.id, user: foundUser.username, role: foundUser.role, permissions: permissionNames },
+        { id: foundUser.id, user: foundUser.username, role: foundUser.role, permissions: roles.permissions },
         process.env.JWT_SECRET,
         { expiresIn: '1h' } // Token expires in 1 hour
       )
@@ -142,7 +138,7 @@ router.post('/login', async (req, res) => {
   }
 })
 
-router.post('/logout', authenticateToken, (req, res) => {
+router.post('/logout', (req, res) => {
   /**
    * Destroys the session and redirects the user to the home page.
    */
