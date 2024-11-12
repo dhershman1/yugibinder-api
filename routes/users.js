@@ -84,14 +84,14 @@ router.post('/refresh', (req, res) => {
     return res.status(401).json({ error: 'Invalid token' })
   }
 
-  const { id, username, role, exp } = decodedToken
+  const { id, username, role, permissions, exp } = decodedToken
   const currentTime = Math.floor(Date.now() / 1000)
 
   // Check if the token is about to expire within the threshold
   if (exp - currentTime < TOKEN_EXPIRATION_THRESHOLD) {
     // Generate a new token
     const newToken = jwt.sign(
-      { id, username, role },
+      { id, username, role, permissions },
       process.env.JWT_SECRET,
       { expiresIn: '1h' } // Token expires in 1 hour
     )
@@ -116,8 +116,16 @@ router.post('/login', async (req, res) => {
     const foundUser = await req.db('users').select().where('username', req.body.username).first()
 
     if (foundUser && await bcrypt.compare(req.body.password, foundUser.password)) {
+      // Get the user's permissions
+      const permissions = await req.db('permissions')
+        .join('role_permissions', 'permissions.id', 'role_permissions.permission_id')
+        .join('roles', 'roles.id', 'role_permissions.role_id')
+        .where('roles.role_name', foundUser.role)
+        .select('permissions.permission_name')
+      const permissionNames = permissions.map(permission => permission.permission_name)
+
       const token = jwt.sign(
-        { id: foundUser.id, user: foundUser.username, role: foundUser.role },
+        { id: foundUser.id, user: foundUser.username, role: foundUser.role, permissions: permissionNames },
         process.env.JWT_SECRET,
         { expiresIn: '1h' } // Token expires in 1 hour
       )
