@@ -1,4 +1,5 @@
 import express from 'express'
+import authenticateToken from '../middleware/authenticateToken.js'
 
 const router = express.Router()
 
@@ -26,6 +27,26 @@ router.post('/registerUser', async (req, res) => {
   } catch (error) {
     req.log.error(error, 'Error registering user')
     res.status(500).json({ error: 'Something went wrong registering the user' })
+  }
+})
+
+router.get('/username', authenticateToken, async (req, res) => {
+  if (req.session.user) {
+    return res.json({ username: req.session.user })
+  }
+
+  try {
+    const user = await req.db('users').where({ auth0_id: req.auth.payload.sub }).first()
+
+    if (user) {
+      req.session.user = user.username
+      return res.json({ username: user.username })
+    }
+
+    res.status(404).json({ error: 'User not found' })
+  } catch (error) {
+    req.log.error(error, 'Error fetching user')
+    res.status(500).json({ error: 'Something went wrong fetching the user' })
   }
 })
 
