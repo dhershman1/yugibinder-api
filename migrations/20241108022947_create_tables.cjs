@@ -1,12 +1,14 @@
 exports.up = function (knex) {
   return knex.schema
-    .createTable('users', (table) => {
+    .createTable('roles', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
+      table.string('role_name', 50).unique().notNullable()
+      table.specificType('permissions', 'text[]').defaultTo('{}')
+    })
+    .createTable('users', (table) => {
+      table.string('auth0_id').primary().unique().notNullable()
       table.string('username').unique().notNullable()
-      table.string('role')
-      table.string('password').notNullable()
-      table.string('avatar')
-      table.jsonb('settings').defaultTo('{}')
+      table.string('role').references('role_name').inTable('roles').defaultTo('user')
       table.timestamp('created_at').defaultTo(knex.fn.now())
       table.timestamp('updated_at').defaultTo(knex.fn.now())
     })
@@ -17,11 +19,11 @@ exports.up = function (knex) {
       table.string('thumbnail')
       table.timestamp('created_at').defaultTo(knex.fn.now())
       table.timestamp('updated_at').defaultTo(knex.fn.now())
-      table.uuid('created_by').references('id').inTable('users')
+      table.string('created_by').references('auth0_id').inTable('users')
       table.integer('views').defaultTo(0)
     })
     .createTable('binder_likes', (table) => {
-      table.uuid('user_id').references('id').inTable('users')
+      table.string('user_id').references('auth0_id').inTable('users')
       table.uuid('binder_id').references('id').inTable('binders')
       table.timestamp('time').defaultTo(knex.fn.now())
     })
@@ -61,7 +63,7 @@ exports.up = function (knex) {
       table.string('title')
       table.text('body')
       table.timestamp('created_at').defaultTo(knex.fn.now())
-      table.uuid('created_by').references('id').inTable('users')
+      table.string('created_by').references('auth0_id').inTable('users')
     })
     .createTable('tags', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
@@ -81,11 +83,6 @@ exports.up = function (knex) {
       table.string('s3_key')
       table.string('artist')
     })
-    .createTable('roles', (table) => {
-      table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
-      table.string('role_name', 50).unique().notNullable()
-      table.specificType('permissions', 'text[]').defaultTo('{}')
-    })
     .createTable('permissions', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
       table.string('permission_name', 50).unique().notNullable()
@@ -96,7 +93,7 @@ exports.up = function (knex) {
       table.primary(['role_id', 'permission_id'])
     })
     .createTable('user_roles', (table) => {
-      table.uuid('user_id').references('id').inTable('users').onDelete('CASCADE')
+      table.string('user_id').references('auth0_id').inTable('users').onDelete('CASCADE')
       table.uuid('role_id').references('id').inTable('roles').onDelete('CASCADE')
       table.primary(['user_id', 'role_id'])
     })
@@ -112,7 +109,6 @@ exports.down = function (knex) {
     .dropTableIfExists('user_roles')
     .dropTableIfExists('role_permissions')
     .dropTableIfExists('permissions')
-    .dropTableIfExists('roles')
     .dropTableIfExists('binder_tags')
     .dropTableIfExists('tags')
     .dropTableIfExists('articles')
@@ -124,4 +120,5 @@ exports.down = function (knex) {
     .dropTableIfExists('avatars')
     .dropTableIfExists('binders')
     .dropTableIfExists('users')
+    .dropTableIfExists('roles')
 }
