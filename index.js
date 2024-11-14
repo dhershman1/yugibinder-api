@@ -36,7 +36,7 @@ if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
     db({
       client: 'pg',
       connection: process.env.DATABASE_URL,
-      searchPath: ['dusty_blog', 'public']
+      searchPath: ['public']
     })
   )
 } else {
