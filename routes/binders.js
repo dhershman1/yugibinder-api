@@ -73,6 +73,26 @@ router.get('/', async (req, res) => {
   }
 })
 
+router.post('/create', authenticateToken, async (req, res) => {
+  const { name, description, thumbnail, tags } = req.body
+
+  try {
+    const [binder] = await req.db('binders')
+      .insert({ name, thumbnail, description, created_by: req.auth.payload.sub })
+      .returning('*')
+
+    if (tags) {
+      await req.db('binder_tags').insert(tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id }))
+      )
+    }
+
+    res.json(binder)
+  } catch (error) {
+    req.log.error(error, 'Error creating binder')
+    res.status(500).json({ error: 'Something went wrong creating binder' })
+  }
+})
+
 router.post('/add-card', authenticateToken, async (req, res) => {
   const { binderId, cardId, rarity, edition } = req.body
 
@@ -80,7 +100,7 @@ router.post('/add-card', authenticateToken, async (req, res) => {
     // Make sure that the user adding this card is the owner of the binder
     const binder = await req.db('binders').where('id', binderId).first()
 
-    if (binder.created_by !== req.user.id) {
+    if (binder.created_by !== req.auth.payload.sub) {
       return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
     }
 
@@ -118,8 +138,9 @@ router.get('/:id', async (req, res) => {
     const binder = await req.db('binders')
       .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
       .leftJoin('tags', 'binder_tags.tag_id', 'tags.id')
-      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'))
-      .groupBy('binders.id')
+      .leftJoin('users', 'binders.created_by', 'users.auth0_id')
+      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'), 'users.username')
+      .groupBy('binders.id', 'users.username')
       .where('binders.id', id)
       .first()
 
@@ -215,7 +236,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   // Make sure that the user deleting this binder is the owner of the binder
   const binder = await req.db('binders').where('id', id).first()
 
-  if (binder.created_by !== req.user.id) {
+  if (binder.created_by !== req.auth.payload.sub) {
     return res.status(403).json({ error: 'You do not have permission to delete this binder' })
   }
 
