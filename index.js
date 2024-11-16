@@ -30,7 +30,8 @@ app.use(
   session({
     secret: SECRET,
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: true,
+    cookie: { secure: process.env.NODE_ENV === 'production' }
   })
 )
 app.use(csurf({ cookie: true }))
