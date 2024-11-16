@@ -137,6 +137,10 @@ router.get('/random', async (req, res) => {
     .limit(1)
     .first()
 
+  if (!randomBinder) {
+    return res.status(404).json({ error: 'No binders found' })
+  }
+
   // Update the views column
   await req.db('binders').where({ id: randomBinder.id }).increment('views', 1)
 
