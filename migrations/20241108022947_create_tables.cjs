@@ -24,7 +24,7 @@ exports.up = function (knex) {
     })
     .createTable('binder_likes', (table) => {
       table.string('user_id').references('auth0_id').inTable('users')
-      table.uuid('binder_id').references('id').inTable('binders')
+      table.uuid('binder_id').references('id').inTable('binders').onDelete('CASCADE')
       table.timestamp('time').defaultTo(knex.fn.now())
     })
     .createTable('cards', (table) => {
@@ -53,7 +53,7 @@ exports.up = function (knex) {
     })
     .createTable('cards_in_binders', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
-      table.uuid('binder_id').references('id').inTable('binders')
+      table.uuid('binder_id').references('id').inTable('binders').onDelete('CASCADE')
       table.integer('card_id').references('id').inTable('cards')
       table.string('rarity', 50).defaultTo('common')
       table.enu('edition', ['first_edition', 'unlimited']).defaultTo('unlimited')
@@ -70,7 +70,7 @@ exports.up = function (knex) {
       table.string('title').unique().notNullable()
     })
     .createTable('binder_tags', (table) => {
-      table.uuid('binder_id').references('id').inTable('binders')
+      table.uuid('binder_id').references('id').inTable('binders').onDelete('CASCADE')
       table.uuid('tag_id').references('id').inTable('tags')
     })
     .createTable('binder_images', (table) => {
