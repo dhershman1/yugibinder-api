@@ -22,8 +22,9 @@ router.get('/', async (req, res) => {
     let query = req.db('binders')
       .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
       .leftJoin('tags', 'binder_tags.tag_id', 'tags.id')
-      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'))
-      .groupBy('binders.id')
+      .leftJoin('users', 'binders.created_by', 'users.auth0_id')
+      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'), 'users.username')
+      .groupBy('binders.id', 'users.username')
 
     // Apply filters
     Object.keys(filters).forEach((key) => {
@@ -107,8 +108,9 @@ router.post('/create', authenticateToken, async (req, res) => {
   }
 })
 
-router.post('/add-card', authenticateToken, async (req, res) => {
-  const { binderId, cardId, rarity, edition } = req.body
+router.post('/:binderId/card/:cardId', authenticateToken, async (req, res) => {
+  const { rarity = 'common', edition = 'unlimited' } = req.body ?? {}
+  const { binderId, cardId } = req.params
 
   try {
     // Make sure that the user adding this card is the owner of the binder
