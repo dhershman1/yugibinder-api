@@ -2,6 +2,7 @@ import express from 'express'
 
 const router = express.Router()
 
+// Replace this cache with a more robust solution like Redis
 const cache = {
   top: {
     data: null,
@@ -83,7 +84,7 @@ router.get('/', async (req, res) => {
 
 router.get('/top', async (req, res) => {
   try {
-    const records = await req.db('cards').select().orderBy('views', 'desc').limit(20)
+    const records = await req.db('cards').select().whereNot({ type: 'Token' }).orderBy('views', 'desc').limit(20)
 
     res.json(records)
   } catch (error) {
@@ -93,14 +94,23 @@ router.get('/top', async (req, res) => {
 })
 
 router.get('/random', async (req, res) => {
+  const { limit = 1 } = req.query
   try {
-    const randomCard = await req.db('cards').orderByRaw('RANDOM()').limit(1).first()
+    const randomCards = await req.db('cards').whereNot({ type: 'Token' }).orderByRaw('RANDOM()').limit(limit)
 
     // Update the views column
-    await req.db('cards').where({ id: randomCard.id }).increment('views', 1)
+    await Promise.all(randomCards.map(async (randomCard) => {
+      await req.db('cards').where({ id: randomCard.id }).increment('views', 1)
+    }))
 
-    randomCard.card_url = `${URL}/cards/${randomCard.id}`
-    res.json(convertImgIDToURL(randomCard))
+    // Convert the card image IDs to URLs
+    randomCards.forEach((card) => {
+      card.card_url = `${URL}/cards/${card.id}`
+
+      card = convertImgIDToURL(card)
+    })
+
+    res.json(randomCards)
   } catch (error) {
     req.log.error(error, 'Error fetching random card')
     res.status(500).json({ error: 'Something went wrong fetching a random card' })
