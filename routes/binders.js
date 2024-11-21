@@ -287,12 +287,13 @@ router.put('/:id', authenticateToken, async (req, res) => {
     if (binder.created_by !== req.auth.payload.sub) {
       return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
     }
+    const tags = req.body.tags.slice(0, 10)
 
     // Delete all tags for this binder
     await req.db('binder_tags').where('binder_id', id).del()
 
     // Insert new tags for this binder
-    await req.db('binder_tags').insert(req.body.tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id })))
+    await req.db('binder_tags').insert(tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id })))
 
     // Update the binders fields
     await req.db('binders').where('id', id).update({
