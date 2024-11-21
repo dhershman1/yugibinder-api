@@ -56,7 +56,8 @@ exports.up = function (knex) {
       table.uuid('binder_id').references('id').inTable('binders').onDelete('CASCADE')
       table.integer('card_id').references('id').inTable('cards')
       table.string('rarity', 50).defaultTo('common')
-      table.enu('edition', ['first_edition', 'unlimited']).defaultTo('unlimited')
+      table.enum('edition', ['first_edition', 'unlimited']).defaultTo('unlimited')
+      table.integer('position')
     })
     .createTable('articles', (table) => {
       table.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'))
