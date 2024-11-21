@@ -289,15 +289,9 @@ router.put('/:id', authenticateToken, async (req, res) => {
     }
 
     // Delete all tags for this binder
-    // await req.db('binder_tags').where('binder_id', id).del()
+    await req.db('binder_tags').where('binder_id', id).del()
 
-    const tags = req.body.tags.slice(0, 10).map(tag => ({ binder_id: binder.id, tag_id: tag.id }))
-
-    await req.db('binder_tags')
-      .insert(tags)
-      .onConflict(['binder_id', 'tag_id'])
-      .merge()
-
+    // Insert new tags for this binder
     await req.db('binder_tags').insert(req.body.tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id })))
 
     // Update the binders fields
