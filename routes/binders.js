@@ -1,5 +1,7 @@
 import express from 'express'
 import authenticateToken from '../middleware/authenticateToken.js'
+import schemaValidation from '../middleware/schemaValidation.js'
+import * as binderSchemas from './schemas/binders.js'
 
 const router = express()
 
@@ -10,7 +12,10 @@ async function getBinderThumbnail (binder, db) {
     return binder
   }
 
-  binder.thumbnail = `https://imgs.yugibinder.com/binders/${thumbnail.s3_key}`
+  binder.thumbnail = {
+    id: thumbnail.id,
+    url: `https://imgs.yugibinder.com/binders/${thumbnail.s3_key}`
+  }
 
   return binder
 }
@@ -74,58 +79,30 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.get('/thumbnails', async (req, res) => {
-  try {
-    const thumbnails = (await req.db('binder_images').select('id', 's3_key', 'artist')).map((thumbnail) => {
-      thumbnail.url = `https://imgs.yugibinder.com/binders/${thumbnail.s3_key}`
-      return thumbnail
-    })
-
-    res.json(thumbnails)
-  } catch (err) {
-    req.log.error(err, 'Error fetching binder thumbnails')
-    res.status(500).json({ error: 'Something went wrong fetching binder thumbnails' })
-  }
-})
-
-router.post('/create', authenticateToken, async (req, res) => {
-  const { name, description, thumbnail, tags } = req.body
+/**
+ * Fetch binders created by the authenticated user
+ */
+router.get('/mine', authenticateToken, async (req, res) => {
+  const userId = req.auth.payload.sub
 
   try {
-    const [binder] = await req.db('binders')
-      .insert({ name, thumbnail, description, created_by: req.auth.payload.sub })
-      .returning('*')
+    const binders = await req.db('binders')
+      .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
+      .leftJoin('tags', 'binder_tags.tag_id', 'tags.id')
+      .leftJoin('users', 'binders.created_by', 'users.auth0_id')
+      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'), 'users.username')
+      .groupBy('binders.id', 'users.username')
+      .where('users.auth0_id', userId)
 
-    if (tags) {
-      await req.db('binder_tags').insert(tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id }))
-      )
-    }
+    // Get binder thumbnails
+    const results = await Promise.all(binders.map(async (binder) => {
+      return getBinderThumbnail(binder, req.db)
+    }))
 
-    res.json(binder)
+    res.json(results)
   } catch (error) {
-    req.log.error(error, 'Error creating binder')
-    res.status(500).json({ error: 'Something went wrong creating binder' })
-  }
-})
-
-router.post('/:binderId/card/:cardId', authenticateToken, async (req, res) => {
-  const { rarity = 'common', edition = 'unlimited' } = req.body ?? {}
-  const { binderId, cardId } = req.params
-
-  try {
-    // Make sure that the user adding this card is the owner of the binder
-    const binder = await req.db('binders').where('id', binderId).first()
-
-    if (binder.created_by !== req.auth.payload.sub) {
-      return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
-    }
-
-    await req.db('cards_in_binders').insert({ binder_id: binderId, card_id: cardId, rarity, edition })
-
-    res.json({ message: 'Card added to binder' })
-  } catch (error) {
-    req.log.error(error, 'Error adding card to binder')
-    res.status(500).json({ error: 'Something went wrong adding card to binder' })
+    req.log.error(error, 'Error fetching binders created by user')
+    res.status(500).json({ error: 'Something went wrong fetching binders created by user' })
   }
 })
 
@@ -154,13 +131,18 @@ router.get('/random', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   const { id } = req.params
+  const { full } = req.query
 
   try {
+    const tagsAgg = full === 'yes'
+      ? req.db.raw('ARRAY_AGG(json_build_object(\'id\', tags.id, \'title\', tags.title)) as tags')
+      : req.db.raw('ARRAY_AGG(tags.title) as tags')
+
     const binder = await req.db('binders')
       .leftJoin('binder_tags', 'binders.id', 'binder_tags.binder_id')
       .leftJoin('tags', 'binder_tags.tag_id', 'tags.id')
       .leftJoin('users', 'binders.created_by', 'users.auth0_id')
-      .select('binders.*', req.db.raw('ARRAY_AGG(tags.title) as tags'), 'users.username')
+      .select('binders.*', tagsAgg, 'users.username')
       .groupBy('binders.id', 'users.username')
       .where('binders.id', id)
       .first()
@@ -230,6 +212,46 @@ router.get('/:id/cards', async (req, res) => {
   }
 })
 
+router.post('/create', authenticateToken, async (req, res) => {
+  const { name, description, thumbnail, tags } = req.body
+
+  try {
+    const [binder] = await req.db('binders')
+      .insert({ name, thumbnail, description, created_by: req.auth.payload.sub })
+      .returning('*')
+
+    if (tags) {
+      await req.db('binder_tags').insert(tags.slice(0, 10).map((tag) => ({ binder_id: binder.id, tag_id: tag.id })))
+    }
+
+    res.json(binder)
+  } catch (error) {
+    req.log.error(error, 'Error creating binder')
+    res.status(500).json({ error: 'Something went wrong creating binder' })
+  }
+})
+
+router.post('/:binderId/card/:cardId', authenticateToken, async (req, res) => {
+  const { rarity = 'common', edition = 'unlimited' } = req.body ?? {}
+  const { binderId, cardId } = req.params
+
+  try {
+    // Make sure that the user adding this card is the owner of the binder
+    const binder = await req.db('binders').where('id', binderId).first()
+
+    if (binder.created_by !== req.auth.payload.sub) {
+      return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
+    }
+
+    await req.db('cards_in_binders').insert({ binder_id: binderId, card_id: cardId, rarity, edition })
+
+    res.json({ message: 'Card added to binder' })
+  } catch (error) {
+    req.log.error(error, 'Error adding card to binder')
+    res.status(500).json({ error: 'Something went wrong adding card to binder' })
+  }
+})
+
 router.post('/', async (req, res) => {
   const { name, description, thumbnail, tags } = req.body
 
@@ -251,6 +273,59 @@ router.post('/', async (req, res) => {
   }
 })
 
+/**
+ * Update a binder
+ * @param {string} id - The ID of the binder
+ */
+router.put('/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params
+
+  try {
+  // Make sure that the user adding this card is the owner of the binder
+    const binder = await req.db('binders').where('id', id).first()
+
+    if (binder.created_by !== req.auth.payload.sub) {
+      return res.status(403).json({ error: 'You do not have permission to add cards to this binder' })
+    }
+
+    // Delete all tags for this binder
+    // await req.db('binder_tags').where('binder_id', id).del()
+
+    const tags = req.body.tags.slice(0, 10).map(tag => ({ binder_id: binder.id, tag_id: tag.id }))
+
+    await req.db('binder_tags')
+      .insert(tags)
+      .onConflict(['binder_id', 'tag_id'])
+      .merge()
+
+    await req.db('binder_tags').insert(req.body.tags.map((tag) => ({ binder_id: binder.id, tag_id: tag.id })))
+
+    // Update the binders fields
+    await req.db('binders').where('id', id).update({
+      name: req.body.name,
+      description: req.body.description,
+      thumbnail: req.body.thumbnail,
+      updated_at: new Date().toISOString()
+    })
+
+    res.json({ message: 'Binder updated' })
+  } catch (error) {
+    req.log.error(error, 'Error updating binder')
+    res.status(500).json({ error: 'Something went wrong updating binder' })
+  }
+})
+
+/**
+ * Update a card in a binder
+ * @param {string} binderId - The ID of the binder
+ * @param {string} cardId - The ID of the card
+ */
+router.put('/:binderId/card/:cardId', authenticateToken, async (req, res) => {})
+
+/**
+ * Delete a binder
+ * @param {string} id - The ID of the binder
+ */
 router.delete('/:id', authenticateToken, async (req, res) => {
   const { id } = req.params
 
