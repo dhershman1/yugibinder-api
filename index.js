@@ -11,6 +11,7 @@ import cardsRouter from './routes/cards.js'
 import bindersRouter from './routes/binders.js'
 import userRouter from './routes/users.js'
 import tagsRouter from './routes/tags.js'
+import thumbnailsRouter from './routes/thumbnails.js'
 // Middleware
 import db from './middleware/db.js'
 import errorHandler from './middleware/errorHandler.js'
@@ -68,7 +69,15 @@ if (process.env.DATABASE_URL || process.env.NODE_ENV === 'production') {
 app.use('/cards', cardsRouter)
 app.use('/binders', bindersRouter)
 app.use('/tags', tagsRouter)
+app.use('/thumbnails', thumbnailsRouter)
 app.use(userRouter)
+
+app.get('/stats', async (req, res) => {
+  const { rows } = await req.db.raw('SELECT COUNT(*) FROM binders')
+  const count = rows[0].count
+
+  res.json({ count })
+})
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`)
