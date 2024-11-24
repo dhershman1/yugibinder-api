@@ -144,4 +144,26 @@ router.get('/:id', async (req, res) => {
   }
 })
 
+router.post('/move', async (req, res) => {
+  const { cards } = req.body
+
+  try {
+    await Promise.all(cards.map(async (card) => {
+      const { cardId, binderId, position } = card
+      const dbCard = await req.db('cards_in_binders').where({ card_id: cardId, binder_id: binderId }).first()
+
+      if (dbCard) {
+        await req.db('cards_in_binders').where({ card_id: cardId, binder_id: binderId }).update({ position })
+      } else {
+        await req.db('cards_in_binders').insert({ card_id: cardId, binder_id: binderId, position })
+      }
+    }))
+
+    res.json({ message: 'Card(s) moved successfully' })
+  } catch (error) {
+    req.log.error(error, 'Error moving card')
+    res.status(500).json({ error: 'Something went wrong moving the card' })
+  }
+})
+
 export default router

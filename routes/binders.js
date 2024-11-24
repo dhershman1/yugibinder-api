@@ -1,7 +1,5 @@
 import express from 'express'
 import authenticateToken from '../middleware/authenticateToken.js'
-import schemaValidation from '../middleware/schemaValidation.js'
-import * as binderSchemas from './schemas/binders.js'
 
 const router = express()
 
@@ -178,7 +176,7 @@ router.get('/:id/cards', async (req, res) => {
     let query = req.db('cards_in_binders')
       .join('cards', 'cards_in_binders.card_id', 'cards.id')
       .where('binder_id', id)
-      .select('cards.*', 'cards_in_binders.rarity', 'cards_in_binders.edition')
+      .select('cards.*', 'cards_in_binders.rarity', 'cards_in_binders.edition', 'cards_in_binders.position')
 
     // Apply filters
     Object.keys(filters).forEach((key) => {
